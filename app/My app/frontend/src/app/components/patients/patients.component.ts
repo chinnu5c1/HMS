@@ -111,36 +111,85 @@ import { AppointmentService } from '../../services/appointment.service';
                   <tbody>
                     <tr *ngFor="let patient of patients">
                       <td>
-                        <strong>{{ patient.name }}</strong>
+                        <div *ngIf="editPatientId !== patient.id; else editName">
+                          <strong>{{ patient.name }}</strong>
+                        </div>
+                        <ng-template #editName>
+                          <input class="form-control form-control-sm" [(ngModel)]="editPatient.name">
+                        </ng-template>
                       </td>
-                      <td>{{ patient.age }}</td>
                       <td>
-                        <span class="badge" 
-                              [ngClass]="{
-                                'bg-primary': patient.gender === 'Male',
-                                'bg-danger': patient.gender === 'Female',
-                                'bg-secondary': patient.gender === 'Other'
-                              }">
-                          {{ patient.gender }}
-                        </span>
+                        <div *ngIf="editPatientId !== patient.id; else editAge">
+                          {{ patient.age }}
+                        </div>
+                        <ng-template #editAge>
+                          <input type="number" class="form-control form-control-sm" [(ngModel)]="editPatient.age">
+                        </ng-template>
                       </td>
-                      <td>{{ patient.mobile }}</td>
+                      <td>
+                        <div *ngIf="editPatientId !== patient.id; else editGender">
+                          <span class="badge" 
+                                [ngClass]="{
+                                  'bg-primary': patient.gender === 'Male',
+                                  'bg-danger': patient.gender === 'Female',
+                                  'bg-secondary': patient.gender === 'Other'
+                                }">
+                            {{ patient.gender }}
+                          </span>
+                        </div>
+                        <ng-template #editGender>
+                          <select class="form-control form-control-sm" [(ngModel)]="editPatient.gender">
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                            <option value="Other">Other</option>
+                          </select>
+                        </ng-template>
+                      </td>
+                      <td>
+                        <div *ngIf="editPatientId !== patient.id; else editMobile">
+                          {{ patient.mobile }}
+                        </div>
+                        <ng-template #editMobile>
+                          <input class="form-control form-control-sm" [(ngModel)]="editPatient.mobile" pattern="[0-9]{10}">
+                        </ng-template>
+                      </td>
                       <td>{{ formatDate(patient.registrationDate) }}</td>
                       <td>
                         <div class="btn-group" role="group">
                           <button 
                             class="btn btn-success btn-sm"
-                            [routerLink]="['/book-appointment', patient.id]">
+                            [routerLink]="['/book-appointment', patient.id]"
+                            [disabled]="editPatientId === patient.id">
                             <i class="bi bi-calendar-plus"></i> Book Appointment
                           </button>
                           <button 
                             class="btn btn-info btn-sm"
-                            (click)="viewAppointments(patient)">
+                            (click)="viewAppointments(patient)"
+                            [disabled]="editPatientId === patient.id">
                             <i class="bi bi-calendar-check"></i> View History
                           </button>
                           <button 
+                            class="btn btn-outline-secondary btn-sm"
+                            *ngIf="editPatientId !== patient.id"
+                            (click)="startEdit(patient)">
+                            <i class="bi bi-pencil"></i>
+                          </button>
+                          <button 
+                            class="btn btn-outline-success btn-sm"
+                            *ngIf="editPatientId === patient.id"
+                            (click)="saveEdit()">
+                            <i class="bi bi-check-lg"></i>
+                          </button>
+                          <button 
+                            class="btn btn-outline-warning btn-sm"
+                            *ngIf="editPatientId === patient.id"
+                            (click)="cancelEdit()">
+                            <i class="bi bi-x-lg"></i>
+                          </button>
+                          <button 
                             class="btn btn-outline-danger btn-sm"
-                            (click)="deletePatient(patient.id!)">
+                            (click)="deletePatient(patient.id!)"
+                            [disabled]="editPatientId === patient.id">
                             <i class="bi bi-trash"></i>
                           </button>
                         </div>
@@ -245,6 +294,8 @@ export class PatientsComponent implements OnInit {
   isLoading = false;
   showSuccessMessage = false;
   successMessage = '';
+  editPatientId: number | null = null;
+  editPatient: Patient = { name: '', age: 0, gender: '', mobile: '' };
 
   constructor(
     private patientService: PatientService,
@@ -287,6 +338,37 @@ export class PatientsComponent implements OnInit {
         }
       });
     }
+  }
+
+  startEdit(patient: Patient): void {
+    this.editPatientId = patient.id!;
+    this.editPatient = { ...patient };
+  }
+
+  cancelEdit(): void {
+    this.editPatientId = null;
+    this.editPatient = { name: '', age: 0, gender: '', mobile: '' };
+  }
+
+  saveEdit(): void {
+    if (this.editPatientId == null) return;
+    const id = this.editPatientId;
+    const payload: Patient = {
+      id,
+      name: this.editPatient.name,
+      age: Number(this.editPatient.age),
+      gender: this.editPatient.gender,
+      mobile: this.editPatient.mobile
+    };
+    this.patientService.updatePatient(id, payload).subscribe({
+      next: () => {
+        this.showSuccess('Patient updated successfully!');
+        this.cancelEdit();
+      },
+      error: (error) => {
+        console.error('Error updating patient:', error);
+      }
+    });
   }
 
   viewAppointments(patient: Patient): void {

@@ -81,6 +81,28 @@ def delete_patient(patient_id):
     
     return '', 204
 
+@app.route('/api/patients/login', methods=['POST'])
+def login_patient():
+    data = request.json or {}
+    name = (data.get('name') or '').strip().lower()
+    mobile = (data.get('mobile') or '').strip()
+
+    if not name or not mobile:
+        return jsonify({'error': 'Name and mobile are required'}), 400
+
+    patients = load_patients()
+    match = next((p for p in patients if (p.get('name', '').strip().lower() == name and str(p.get('mobile', '')).strip() == mobile)), None)
+
+    if not match:
+        return jsonify({'error': 'Invalid credentials'}), 401
+
+    # Return minimal profile for session
+    return jsonify({
+        'id': match['id'],
+        'name': match['name'],
+        'mobile': match['mobile']
+    })
+
 @app.route('/health', methods=['GET'])
 def health_check():
     return jsonify({'status': 'healthy', 'service': 'patient-service'})

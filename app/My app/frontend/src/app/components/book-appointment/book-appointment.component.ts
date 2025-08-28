@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
+import { AuthService } from '../../services/auth.service';
 import { PatientService, Patient } from '../../services/patient.service';
 import { DoctorService, Doctor } from '../../services/doctor.service';
 import { AppointmentService, Appointment } from '../../services/appointment.service';
@@ -12,6 +13,24 @@ import { AppointmentService, Appointment } from '../../services/appointment.serv
   imports: [CommonModule, FormsModule],
   template: `
     <div class="container">
+      <!-- Patient Login Gate -->
+      <div class="row" *ngIf="!loggedInPatient">
+        <div class="col-12">
+          <div class="alert alert-info d-flex justify-content-between align-items-center">
+            <div>
+              <i class="bi bi-box-arrow-in-right"></i>
+              Please login to book an appointment.
+            </div>
+            <form class="d-flex gap-2" (ngSubmit)="loginPatient()" #patientLoginForm="ngForm">
+              <input class="form-control" placeholder="Name" [(ngModel)]="patientLoginName" name="patientLoginName" required>
+              <input class="form-control" placeholder="Mobile" [(ngModel)]="patientLoginMobile" name="patientLoginMobile" required pattern="[0-9]{10}">
+              <button class="btn btn-primary" [disabled]="!patientLoginName || !patientLoginMobile">
+                Login
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
       <div class="row">
         <div class="col-12">
           <nav aria-label="breadcrumb">
@@ -108,7 +127,7 @@ import { AppointmentService, Appointment } from '../../services/appointment.serv
                 <button 
                   type="submit" 
                   class="btn btn-success w-100"
-                  [disabled]="!selectedTimeSlot || !appointmentDate || isLoading">
+                  [disabled]="!selectedTimeSlot || !appointmentDate || isLoading || !loggedInPatient">
                   <i class="bi bi-calendar-check"></i>
                   {{ isLoading ? 'Booking...' : 'Confirm Appointment' }}
                 </button>
@@ -265,13 +284,17 @@ export class BookAppointmentComponent implements OnInit {
   showSuccessModal = false;
   errorMessage = '';
   minDate = '';
+  loggedInPatient: { id: number; name: string; mobile: string } | null = null;
+  patientLoginName = '';
+  patientLoginMobile = '';
 
   constructor(
     private route: ActivatedRoute,
     private router: Router,
     private patientService: PatientService,
     private doctorService: DoctorService,
-    private appointmentService: AppointmentService
+    private appointmentService: AppointmentService,
+    private authService: AuthService
   ) {
     // Set minimum date to today
     const today = new Date();
@@ -289,6 +312,15 @@ export class BookAppointmentComponent implements OnInit {
       this.errorMessage = 'Patient not found. Please go back and try again.';
       return;
     }
+
+    // Subscribe to auth state
+    this.authService.currentPatient$.subscribe(p => {
+      this.loggedInPatient = p;
+      if (p && this.patient && p.id !== this.patient.id) {
+        // Redirect to the logged in patient's booking page
+        this.router.navigate(['/book-appointment', p.id]);
+      }
+    });
 
     // Load doctors
     this.doctorService.doctors$.subscribe(doctors => {
@@ -320,6 +352,10 @@ export class BookAppointmentComponent implements OnInit {
   }
 
   bookAppointment(): void {
+    if (!this.loggedInPatient) {
+      this.errorMessage = 'Please login before booking.';
+      return;
+    }
     if (!this.patient || !this.selectedDoctor || !this.appointmentDate || !this.selectedTimeSlot) {
       this.errorMessage = 'Please fill in all required fields.';
       return;
@@ -333,8 +369,8 @@ export class BookAppointmentComponent implements OnInit {
     this.isLoading = true;
 
     const appointment: Appointment = {
-      patientId: this.patient.id!,
-      patientName: this.patient.name,
+      patientId: this.loggedInPatient.id,
+      patientName: this.loggedInPatient.name,
       doctorId: this.selectedDoctor.id!,
       doctorName: this.selectedDoctor.name,
       department: this.selectedDoctor.department,
@@ -359,6 +395,21 @@ Department: ${this.selectedDoctor?.department}`);
         this.isLoading = false;
         this.errorMessage = 'Failed to book appointment. Please try again.';
         console.error('Error booking appointment:', error);
+      }
+    });
+  }
+
+  loginPatient(): void {
+    if (!this.patientLoginName || !this.patientLoginMobile) return;
+    this.authService.loginPatient(this.patientLoginName, this.patientLoginMobile).subscribe({
+      next: (profile) => {
+        if (this.patient && profile.id !== this.patient.id) {
+          // Navigate to the correct patient's booking page
+          this.router.navigate(['/book-appointment', profile.id]);
+        }
+      },
+      error: () => {
+        this.errorMessage = 'Login failed. Please check your name and mobile number.';
       }
     });
   }

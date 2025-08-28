@@ -67,6 +67,27 @@ def get_doctor(doctor_id):
     
     return jsonify(doctor)
 
+@app.route('/api/doctors/login', methods=['POST'])
+def login_doctor():
+    data = request.json or {}
+    name = (data.get('name') or '').strip().lower()
+    department = (data.get('department') or '').strip().lower()
+
+    if not name or not department:
+        return jsonify({'error': 'Name and department are required'}), 400
+
+    doctors = load_doctors()
+    match = next((d for d in doctors if (d.get('name', '').strip().lower() == name and d.get('department', '').strip().lower() == department)), None)
+
+    if not match:
+        return jsonify({'error': 'Invalid credentials'}), 401
+
+    return jsonify({
+        'id': match['id'],
+        'name': match['name'],
+        'department': match['department']
+    })
+
 # Appointment endpoints
 @app.route('/api/appointments', methods=['GET'])
 def get_appointments():

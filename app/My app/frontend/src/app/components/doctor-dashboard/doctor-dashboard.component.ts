@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DoctorService, Doctor } from '../../services/doctor.service';
 import { AppointmentService, Appointment } from '../../services/appointment.service';
+import { AuthService } from '../../services/auth.service';
 
 @Component({
   selector: 'app-doctor-dashboard',
@@ -20,26 +21,27 @@ import { AppointmentService, Appointment } from '../../services/appointment.serv
             <div class="card-body">
               <form (ngSubmit)="loginDoctor()" #loginForm="ngForm" *ngIf="!selectedDoctor">
                 <div class="mb-3">
-                  <label for="doctorName" class="form-label">Doctor Name</label>
-                  <select 
+                  <label for="doctorLoginName" class="form-label">Doctor Name</label>
+                  <input 
+                    id="doctorLoginName"
                     class="form-control" 
-                    id="doctorName"
-                    [(ngModel)]="selectedDoctorId" 
-                    name="doctorName"
+                    [(ngModel)]="doctorLoginName" 
+                    name="doctorLoginName"
                     required>
-                    <option value="">Select Doctor</option>
-                    <option 
-                      *ngFor="let doctor of doctors" 
-                      [value]="doctor.id">
-                      {{ doctor.name }} - {{ doctor.department }}
-                    </option>
-                  </select>
                 </div>
-                
+                <div class="mb-3">
+                  <label for="doctorLoginDept" class="form-label">Department</label>
+                  <input 
+                    id="doctorLoginDept"
+                    class="form-control" 
+                    [(ngModel)]="doctorLoginDept" 
+                    name="doctorLoginDept"
+                    required>
+                </div>
                 <button 
                   type="submit" 
                   class="btn btn-primary w-100"
-                  [disabled]="!selectedDoctorId">
+                  [disabled]="!doctorLoginName || !doctorLoginDept">
                   <i class="bi bi-box-arrow-in-right"></i> Login
                 </button>
               </form>
@@ -201,7 +203,8 @@ import { AppointmentService, Appointment } from '../../services/appointment.serv
 export class DoctorDashboardComponent implements OnInit {
   doctors: Doctor[] = [];
   selectedDoctor: Doctor | null = null;
-  selectedDoctorId: number | null = null;
+  doctorLoginName = '';
+  doctorLoginDept = '';
   doctorAppointments: Appointment[] = [];
   todayAppointments: Appointment[] = [];
   completedToday = 0;
@@ -210,32 +213,49 @@ export class DoctorDashboardComponent implements OnInit {
 
   constructor(
     private doctorService: DoctorService,
-    private appointmentService: AppointmentService
+    private appointmentService: AppointmentService,
+    private authService: AuthService
   ) {}
 
   ngOnInit(): void {
     this.doctorService.doctors$.subscribe(doctors => {
       this.doctors = doctors;
     });
+    this.authService.currentDoctor$.subscribe(doc => {
+      if (doc) {
+        this.selectedDoctor = this.doctors.find(d => d.id === doc.id) || null;
+        if (this.selectedDoctor) {
+          this.loadDoctorAppointments();
+          this.showSuccess(`Welcome, ${this.selectedDoctor.name}!`);
+        }
+      }
+    });
   }
 
   loginDoctor(): void {
-    if (!this.selectedDoctorId) return;
-    
-    this.selectedDoctor = this.doctors.find(d => d.id === this.selectedDoctorId) || null;
-    
-    if (this.selectedDoctor) {
-      this.loadDoctorAppointments();
-      this.showSuccess(`Welcome, ${this.selectedDoctor.name}!`);
-    }
+    if (!this.doctorLoginName || !this.doctorLoginDept) return;
+    this.authService.loginDoctor(this.doctorLoginName, this.doctorLoginDept).subscribe({
+      next: (profile) => {
+        this.selectedDoctor = this.doctors.find(d => d.id === profile.id) || null;
+        if (this.selectedDoctor) {
+          this.loadDoctorAppointments();
+          this.showSuccess(`Welcome, ${this.selectedDoctor.name}!`);
+        }
+      },
+      error: () => {
+        this.showSuccess('Login failed. Please check your name and department.');
+      }
+    });
   }
 
   logout(): void {
     this.selectedDoctor = null;
-    this.selectedDoctorId = null;
+    this.doctorLoginName = '';
+    this.doctorLoginDept = '';
     this.doctorAppointments = [];
     this.todayAppointments = [];
     this.completedToday = 0;
+    this.authService.logoutDoctor();
   }
 
   loadDoctorAppointments(): void {
