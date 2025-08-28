@@ -127,7 +127,9 @@ import { AppointmentService, Appointment } from '../../services/appointment.serv
             <div class="card-body">
               <div class="row" *ngIf="doctors.length > 0; else noDoctors">
                 <div class="col-md-6 mb-4" *ngFor="let doctor of doctors">
-                  <div class="card h-100 border-0 shadow-sm"
+                  <div class="card h-100 shadow-sm doctor-card"
+                       [class.border-0]="selectedDoctor?.id !== doctor.id"
+                       [class.border]="selectedDoctor?.id === doctor.id"
                        [class.border-success]="selectedDoctor?.id === doctor.id"
                        style="cursor: pointer;"
                        (click)="selectDoctor(doctor)">
