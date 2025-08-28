@@ -383,6 +383,10 @@ export class BookAppointmentComponent implements OnInit {
       next: (result) => {
         this.isLoading = false;
         this.showSuccessModal = true;
+        // Auto-logout patient immediately after successful booking
+        this.authService.logoutPatient();
+        this.patientLoginName = '';
+        this.patientLoginMobile = '';
         
         // Simulate SMS notification
         console.log(`SMS sent to ${this.patient?.mobile}: 
